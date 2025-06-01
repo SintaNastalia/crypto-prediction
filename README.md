@@ -1,14 +1,15 @@
 ---
-title: Streamlit Template Space
+title: Crypto Prediction
 emoji: 🚀
 colorFrom: red
 colorTo: red
 sdk: docker
 app_port: 8501
 tags:
-  - streamlit
+- streamlit
 pinned: false
-short_description: Streamlit template space
+short_description: Crypto Price Prediction Dashboard
+license: apache-2.0
 ---
 
 # Welcome to Streamlit!
