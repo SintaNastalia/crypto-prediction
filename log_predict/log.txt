@@ -1,0 +1,9 @@
+Data mentah disimpan: log_predict\btc_20250508_144831_raw.csv
+Harga terakhir: Ticker
+BTC-USD    98932.9375
+Name: 59, dtype: float64
+Input model disimpan: log_predict\btc_20250508_144831_input.csv
+Bentuk sebelum reshape: (1, 18)
+Sample scaled input: [0.88897269 0.88825778 0.87958914 0.89148217 0.88473876 0.8839859
+ 0.90619011 0.91024935 0.9003545  0.88504182]
+Prediksi harga berikutnya: 99746.83
