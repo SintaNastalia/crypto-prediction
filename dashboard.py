@@ -166,7 +166,13 @@ try:
 
     # Titik awal prediksi
     first_pred_date = df_pred["Date"].min()
-    first_pred_price = df_pred[df_pred["Date"] == first_pred_date]["Predicted_Close"].values[0]
+    first_pred_row = df_pred[df_pred["Date"] == first_pred_date]
+    
+    if not first_pred_row.empty:
+        first_pred_price = first_pred_row["Predicted_Close"].values[0]
+    else:
+        st.warning("Data prediksi kosong atau tidak cocok dengan tanggal.")
+        first_pred_price = None  # atau isi default jika mau
 
     # Garis transisi putus-putus dari historis ke prediksi
     fig.add_trace(go.Scatter(
