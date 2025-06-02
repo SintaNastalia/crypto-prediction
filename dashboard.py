@@ -109,15 +109,19 @@ def load_data(coin):
     df_pred = pd.read_csv(pred_path)
     df_proc = pd.read_csv(proc_path)
 
-    # Pastikan kolom Date bertipe date
-    df_pred["Date"] = pd.to_datetime(df_pred["Date"]).dt.date
-    df_hist["Date"] = pd.to_datetime(df_hist["Date"]).dt.date
+    # Konversi kolom Date jadi datetime64
+    for df in [df_hist, df_pred, df_proc]:
+        if "Date" in df.columns:
+            df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
 
+    # Buang baris yang gagal dikonversi
+    df_hist.dropna(subset=["Date"], inplace=True)
+    df_pred.dropna(subset=["Date"], inplace=True)
+    df_proc.dropna(subset=["Date"], inplace=True)
+
+    # Hitung MA jika belum ada
     if "MA_14" not in df_proc.columns and "Close" in df_proc.columns:
         df_proc["MA_14"] = df_proc["Close"].rolling(window=14).mean()
-
-    for df in [df_hist, df_pred, df_proc]:
-        df["Date"] = pd.to_datetime(df["Date"])
 
     return df_hist, df_pred, df_proc
 
@@ -165,14 +169,19 @@ try:
     last_price = df_hist_tf[df_hist_tf["Date"] == last_date]["Close"].values[0]
 
     # Titik awal prediksi
-    first_pred_date = df_pred["Date"].min()
-    first_pred_row = df_pred[df_pred["Date"] == first_pred_date]
+    first_pred_price = None
+    if not df_pred.empty:
+        first_pred_date = df_pred["Date"].min()
+        first_pred_row = df_pred[df_pred["Date"] == first_pred_date]
     
-    if not first_pred_row.empty:
-        first_pred_price = first_pred_row["Predicted_Close"].values[0]
-    else:
-        st.warning("Data prediksi kosong atau tidak cocok dengan tanggal.")
-        first_pred_price = None  # atau isi default jika mau
+        if not first_pred_row.empty:
+            try:
+                first_pred_price = first_pred_row["Predicted_Close"].values[0]
+            except IndexError:
+                st.warning("Gagal mengambil nilai prediksi pertama.")
+        else:
+            st.warning("Data prediksi tidak mengandung tanggal prediksi pertama.")
+
 
     # Garis transisi putus-putus dari historis ke prediksi
     fig.add_trace(go.Scatter(
