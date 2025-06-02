@@ -109,6 +109,10 @@ def load_data(coin):
     df_pred = pd.read_csv(pred_path)
     df_proc = pd.read_csv(proc_path)
 
+    # Pastikan kolom Date bertipe date
+    df_pred["Date"] = pd.to_datetime(df_pred["Date"]).dt.date
+    df_hist["Date"] = pd.to_datetime(df_hist["Date"]).dt.date
+
     if "MA_14" not in df_proc.columns and "Close" in df_proc.columns:
         df_proc["MA_14"] = df_proc["Close"].rolling(window=14).mean()
 
@@ -184,6 +188,9 @@ try:
             textposition="top center",
             showlegend=False
         ))
+
+    if df_pred.empty:
+        st.warning("Data prediksi belum tersedia.")
 
     fig.update_layout(
         height=450,
