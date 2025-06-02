@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objs as go
 import subprocess
-import os
-import json
 
 # --- Warna Tema ---
 THEME_BG = "#F0F8FF"          # Biru sangat lembut untuk latar
@@ -21,31 +19,21 @@ st.markdown(
     f"""
     <link href="https://fonts.googleapis.com/css2?family=Montserrat&display=swap" rel="stylesheet">
     <style>
-        /* Background halaman utama */
         .stApp {{
             background-color: {THEME_BG};
         }}
-
-        /* Font global */
         html, body, [class*="css"] {{
             font-family: 'Montserrat', sans-serif !important;
         }}
-
-        /* Warna latar sidebar */
         [data-testid="stSidebar"] {{
             background-color: #E6F0FA;
             padding: 20px;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             color: #003366;
         }}
-
-        /* Warna teks di sidebar */
         [data-testid="stSidebar"] * {{
             color: #003366;
             font-weight: 600;
         }}
-
-        /* Hover highlight pada elemen sidebar */
         [data-testid="stSidebar"] .css-1n76uvr:hover {{
             background-color: #cce0f5;
         }}
@@ -83,17 +71,14 @@ with st.sidebar:
     show_data = st.checkbox("Tampilkan Tabel Harga", value=False)
 
     st.markdown("---")
-    # st.subheader("📤 Prediksi Real-Time")
     if st.button("🔁 Jalankan Prediksi Hari Ini"):
         with st.spinner("Menjalankan prediksi harian..."):
             try:
                 subprocess.run(["python", "run_daily_prediction.py"], check=True)
-                st.cache_data.clear()  # Tambahkan ini agar cache dibersihkan
+                st.cache_data.clear()
                 st.success("✅ Prediksi berhasil dijalankan dan cache diperbarui.")
             except subprocess.CalledProcessError as e:
                 st.error(f"Terjadi kesalahan: {e}")
-
-
 
 coin = COINS[coin_label]
 days = TIME_FRAMES[tf_label]
@@ -109,36 +94,31 @@ def load_data(coin):
     df_pred = pd.read_csv(pred_path)
     df_proc = pd.read_csv(proc_path)
 
-    # Pastikan kolom Date bertipe date
-    df_pred["Date"] = pd.to_datetime(df_pred["Date"]).dt.date
-    df_hist["Date"] = pd.to_datetime(df_hist["Date"]).dt.date
+    df_hist["Date"] = pd.to_datetime(df_hist["Date"])
+    df_pred["Date"] = pd.to_datetime(df_pred["Date"])
+    df_proc["Date"] = pd.to_datetime(df_proc["Date"])
 
     if "MA_14" not in df_proc.columns and "Close" in df_proc.columns:
         df_proc["MA_14"] = df_proc["Close"].rolling(window=14).mean()
-
-    for df in [df_hist, df_pred, df_proc]:
-        df["Date"] = pd.to_datetime(df["Date"])
 
     return df_hist, df_pred, df_proc
 
 try:
     df_hist, df_pred, df_proc = load_data(coin)
     df_hist.sort_values("Date", inplace=True)
-    df_proc.sort_values("Date", inplace=True)
     df_pred.sort_values("Date", inplace=True)
+    df_proc.sort_values("Date", inplace=True)
 
     df_hist_tf = df_hist[df_hist["Date"] >= df_hist["Date"].max() - pd.Timedelta(days=days)]
     df_proc_tf = df_proc[df_proc["Date"] >= df_proc["Date"].max() - pd.Timedelta(days=days)]
     df_pred = df_pred[df_pred["Date"] > df_hist["Date"].max()]
 
-    # --- Highlight Prediksi Harga Terbaru ---
+    # --- Highlight Prediksi Terbaru ---
     if not df_pred.empty:
         latest_pred = df_pred.iloc[-1]
-        pred_value = latest_pred["Predicted_Close"]
-        pred_date = latest_pred["Date"].strftime("%d %b %Y")
         st.markdown(
             f"<div style='background-color:{THEME_PRIMARY};padding:20px;border-radius:10px;'>"
-            f"<h2 style='color:white;text-align:center;'>🎯 Prediksi Harga {coin_label} pada {pred_date}: <b>{pred_value:,.2f} USD</b></h2>"
+            f"<h2 style='color:white;text-align:center;'>🎯 Prediksi Harga {coin_label} pada {latest_pred['Date'].strftime('%d %b %Y')}: <b>{latest_pred['Predicted_Close']:,.2f} USD</b></h2>"
             f"</div><br>",
             unsafe_allow_html=True
         )
@@ -157,29 +137,25 @@ try:
         fig.add_trace(go.Scatter(
             x=df_proc_tf["Date"], y=df_proc_tf["MA_14"],
             mode="lines", name="MA 14",
-            line=dict(color="orange", width=1.5, dash="solid")
+            line=dict(color="orange", width=1.5)
         ))
 
-    # Titik akhir harga historis
-    last_date = df_hist_tf["Date"].max()
-    last_price = df_hist_tf[df_hist_tf["Date"] == last_date]["Close"].values[0]
-
-    # Titik awal prediksi
-    first_pred_date = df_pred["Date"].min()
-    first_pred_price = df_pred[df_pred["Date"] == first_pred_date]["Predicted_Close"].values[0]
-
-    # Garis transisi putus-putus dari historis ke prediksi
-    fig.add_trace(go.Scatter(
-        x=[last_date, first_pred_date],
-        y=[last_price, first_pred_price],
-        mode="lines",
-        name="Transisi ke Prediksi",
-        line=dict(color="darkblue", width=2, dash="dot"),
-        showlegend=False
-    ))
-
-
     if not df_pred.empty:
+        first_pred_date = df_pred["Date"].min()
+        first_pred_price = df_pred[df_pred["Date"] == first_pred_date]["Predicted_Close"].values[0]
+
+        last_date = df_hist_tf["Date"].max()
+        last_price = df_hist_tf[df_hist_tf["Date"] == last_date]["Close"].values[0]
+
+        fig.add_trace(go.Scatter(
+            x=[last_date, first_pred_date],
+            y=[last_price, first_pred_price],
+            mode="lines",
+            name="Transisi ke Prediksi",
+            line=dict(color="darkblue", width=2, dash="dot"),
+            showlegend=False
+        ))
+
         fig.add_trace(go.Scatter(
             x=df_pred["Date"], y=df_pred["Predicted_Close"],
             mode="markers+text", name="Prediksi",
@@ -188,20 +164,19 @@ try:
             textposition="top center",
             showlegend=False
         ))
-
-    if df_pred.empty:
+    else:
         st.warning("Data prediksi belum tersedia.")
 
     fig.update_layout(
         height=450,
         margin=dict(t=20, b=20),
         hovermode="x unified",
-        plot_bgcolor="#F0F8FF",
+        plot_bgcolor=THEME_BG,
         legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center")
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # --- Indikator Teknis ---
+    # --- Grafik Indikator ---
     st.subheader(f"📊 Indikator: {indicator}")
     fig_ind = go.Figure()
 
@@ -232,17 +207,18 @@ try:
             fig_ind.add_shape(type="line", x0=df_proc_tf["Date"].min(), x1=df_proc_tf["Date"].max(), y0=30, y1=30, line=dict(color="green", dash="dot"))
 
     fig_ind.update_layout(
-        height=300, margin=dict(t=10, b=20),
+        height=300,
+        margin=dict(t=10, b=20),
         hovermode="x unified",
-        plot_bgcolor="#F0F8FF" 
+        plot_bgcolor=THEME_BG
     )
     st.plotly_chart(fig_ind, use_container_width=True)
 
-    # --- Unduh Data Historis ---
+    # --- Unduh Data ---
     st.subheader("📥 Unduh Data Historis")
     st.download_button("⬇️ Download CSV", df_hist.to_csv(index=False), f"{coin}_historical.csv", "text/csv")
 
-    # --- Tabel Data Opsional ---
+    # --- Tabel Data ---
     if show_data:
         st.subheader("📄 Tabel Harga")
         st.dataframe(df_hist_tf.tail(30), use_container_width=True)
