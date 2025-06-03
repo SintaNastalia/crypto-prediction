@@ -5,6 +5,7 @@ import joblib
 from datetime import timedelta
 from tensorflow.keras.models import load_model
 import tensorflow as tf
+import traceback
 
 from utils.data_fetcher import fetch_crypto_data, fetch_fgi_data
 from utils.technicals import add_indicators
