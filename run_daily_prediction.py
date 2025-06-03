@@ -59,15 +59,21 @@ for coin_name, symbol in COINS.items():
         df_price = fetch_crypto_data(symbol)
         df_price.to_csv(f"1_data_realtime/historical/{coin_name}.csv", index=False)
 
-        # Gabungkan FGI dan hitung indikator teknikal
+        # Gabungkan dengan FGI & hitung indikator
         df_merged = pd.merge(df_price, df_fgi, on="Date", how="left")
         df_merged = add_indicators(df_merged)
 
-        # Load clustering model dan scaler
+        # Load model klaster dan scaler
         kmeans, scaler_cluster, _ = load_cluster_model_and_data(coin_name.upper(), N_CLUSTERS)
         cluster_features = list(scaler_cluster.feature_names_in_)
 
-        # Predict cluster dan one-hot encode
+        # Validasi kolom tersedia untuk clustering
+        missing_features = [f for f in cluster_features if f not in df_merged.columns]
+        if missing_features:
+            print(f"[ERROR] Kolom hilang setelah indikator: {missing_features}")
+            continue
+
+        # Prediksi klaster
         df_merged["cluster"] = -1
         valid_rows = df_merged.dropna(subset=cluster_features)
         if not valid_rows.empty:
@@ -76,79 +82,70 @@ for coin_name, symbol in COINS.items():
             df_merged.loc[valid_rows.index, "cluster"] = cluster_labels
         else:
             print(f"[WARNING] Tidak ada data valid untuk clustering pada {coin_name.upper()}")
+            continue
 
         # One-hot encode cluster
         df_merged = df_merged.reset_index(drop=True)
         one_hot_cluster_df = one_hot_encode_cluster(df_merged["cluster"], N_CLUSTERS)
         df_merged = pd.concat([df_merged, one_hot_cluster_df], axis=1)
-
-        # Hapus kolom cluster integer, karena training pakai one-hot
         df_merged.drop(columns=["cluster"], inplace=True)
-
-        # Drop baris dengan NaN (indikator/FGI)
         df_merged.dropna(inplace=True)
         df_merged = df_merged.reset_index(drop=True)
 
-        df_merged.dropna(inplace=True)
-        df_merged = df_merged.reset_index(drop=True)
-
-        # Tambahkan ini:
-        processed_path = f"1_data_realtime/processed/{coin_name}_processed.csv"
-        df_merged.to_csv(processed_path, index=False)
-
-
-        # Load fitur dari scaler X supaya sama urutannya
-        scaler_x_path = os.path.join(MODEL_DIR, f"{coin_name}_k{N_CLUSTERS}_w{WINDOW_SIZE}_xscaler.pkl")
-        scaler_y_path = os.path.join(MODEL_DIR, f"{coin_name}_k{N_CLUSTERS}_w{WINDOW_SIZE}_scaler.pkl")
-        model_path = os.path.join(MODEL_DIR, f"{coin_name}_k{N_CLUSTERS}_w{WINDOW_SIZE}_model.h5")
-
-        if not os.path.exists(model_path) or not os.path.exists(scaler_x_path) or not os.path.exists(scaler_y_path):
-            print(f"[ERROR] Model atau scaler tidak ditemukan untuk {coin_name.upper()}. Lewati.")
-            continue
-
-        model = load_model(model_path)
-        scaler_X = joblib.load(scaler_x_path)
-        scaler_y = joblib.load(scaler_y_path)
-
-        feature_names = list(scaler_X.feature_names_in_)
-
-        # Pastikan data ada cukup untuk windowing
-        if len(df_merged) < WINDOW_SIZE:
-            print(f"[SKIP] Data tidak cukup untuk {coin_name.upper()} (hanya {len(df_merged)} baris).")
-            continue
-
-        # Simpan hasil penggabungan dan perhitungan indikator ke processed
+        # Simpan processed
         processed_path = f"1_data_realtime/processed/{coin_name}_processed.csv"
         df_merged.to_csv(processed_path, index=False)
         print(f"[INFO] Data processed disimpan ke: {processed_path}")
 
+        # Load scaler dan model
+        scaler_x_path = os.path.join(MODEL_DIR, f"{coin_name}_k{N_CLUSTERS}_w{WINDOW_SIZE}_xscaler.pkl")
+        scaler_y_path = os.path.join(MODEL_DIR, f"{coin_name}_k{N_CLUSTERS}_w{WINDOW_SIZE}_scaler.pkl")
+        model_path = os.path.join(MODEL_DIR, f"{coin_name}_k{N_CLUSTERS}_w{WINDOW_SIZE}_model.h5")
 
-        # Buat window data untuk input ke model
-        # Pilih kolom sesuai feature_names
+        if not all(map(os.path.exists, [scaler_x_path, scaler_y_path, model_path])):
+            print(f"[ERROR] Model atau scaler tidak ditemukan untuk {coin_name.upper()}. Lewati.")
+            continue
+
+        scaler_X = joblib.load(scaler_x_path)
+        scaler_y = joblib.load(scaler_y_path)
+        model = load_model(model_path)
+        feature_names = list(scaler_X.feature_names_in_)
+
+        # Debug fitur
+        print(f"[DEBUG] Fitur model: {feature_names}")
+        print(f"[DEBUG] Kolom df_merged: {list(df_merged.columns)}")
+
+        # Validasi fitur & window
+        if len(df_merged) < WINDOW_SIZE:
+            print(f"[SKIP] {coin_name.upper()}: Hanya {len(df_merged)} baris, kurang dari window ({WINDOW_SIZE})")
+            continue
+
+        if df_merged[feature_names].isnull().any().any():
+            print(f"[ERROR] NaN ditemukan dalam fitur yang dibutuhkan untuk {coin_name.upper()}")
+            continue
+
+        # Prediksi
         df_window = df_merged[feature_names].iloc[-WINDOW_SIZE:]
-        X_input = df_window.values  # shape (window_size, n_features)
+        X_input = df_window.values
         X_input_scaled = scaler_X.transform(X_input)
-
-        # Bentuk input ke model: (1, window_size, n_features)
         X_input_scaled = X_input_scaled.reshape(1, WINDOW_SIZE, -1)
 
         print(f"[INFO] Bentuk input untuk prediksi: {X_input_scaled.shape}")
 
-        # Prediksi
         predicted_scaled = predict_once(model, tf.convert_to_tensor(X_input_scaled, dtype=tf.float32))
         predicted_price = scaler_y.inverse_transform(predicted_scaled.numpy())[0, 0]
 
         print(f"[PREDIKSI] {coin_name.upper()}: {predicted_price:.2f}")
 
-        # Simpan prediksi dengan tanggal besok
+        # Simpan hasil prediksi
         next_date = pd.to_datetime(df_price["Date"].max()) + timedelta(days=1)
         pred_df = pd.DataFrame({
             "Date": [next_date],
             "Predicted_Close": [predicted_price]
         })
         pred_df.to_csv(f"1_data_realtime/prediction/{coin_name}_predicted.csv", index=False)
-
         print(f"[SUCCESS] Prediksi {coin_name.upper()} disimpan.")
 
     except Exception as e:
         print(f"[ERROR] Gagal memproses {coin_name.upper()}: {e}")
+        traceback.print_exc()
