@@ -1,9 +1,9 @@
-name: Daily Prediction
+name: Daily Crypto Prediction Update
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Setiap hari pukul 00:00 UTC
-  workflow_dispatch:     # Bisa dijalankan manual dari GitHub juga
+    - cron: '0 0 * * *'  # Menjalankan setiap hari pukul 02:00 UTC (09:00 WIB)
+  workflow_dispatch:      # Bisa dijalankan manual juga
 
 jobs:
   run-daily-prediction:
@@ -13,7 +13,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
@@ -26,10 +26,10 @@ jobs:
       - name: Run daily prediction script
         run: python run_daily_prediction.py
 
-      - name: Commit prediction results
+      - name: Commit changes
         run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add 1_data_realtime/prediction/
-          git commit -m "Update daily predictions" || echo "No changes to commit"
-          git push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "🗓️ Update prediksi harian [CI]" || echo "No changes to commit"
+          git push https://sintanastalia:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/sintanastalia/crypto-prediction HEAD:main
