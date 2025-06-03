@@ -1,6 +1,6 @@
-streamlit==1.27.2
+streamlit==1.37.2
 yfinance==0.2.58
-pandas==2.1.0
+pandas==2.2.2
 numpy==1.26.4
 keras==3.4.1
 tensorflow==2.16.1
