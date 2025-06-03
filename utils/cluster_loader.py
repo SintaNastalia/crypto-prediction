@@ -14,6 +14,13 @@ def load_cluster_model_and_data(coin_name: str, n_clusters: int = 4, base_dir: s
     scaler_file = os.path.join(model_dir, f"scaler_k{n_clusters}.pkl")
 
     print(f"Memuat model dan data untuk: {coin_name}, klaster: {n_clusters}")
+
+    try:
+        kmeans = joblib.load(kmeans_file)
+        scaler = joblib.load(scaler_file)
+        clustered_df = pd.read_csv(data_file)
+    except Exception as e:
+        raise RuntimeError(f"Gagal load model klaster untuk {coin}: {e}")
     
     if not os.path.exists(kmeans_file):
         raise FileNotFoundError(f"Model KMeans tidak ditemukan: {kmeans_file}")
