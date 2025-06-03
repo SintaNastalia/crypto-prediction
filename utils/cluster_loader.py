@@ -20,7 +20,7 @@ def load_cluster_model_and_data(coin_name: str, n_clusters: int = 4, base_dir: s
         scaler = joblib.load(scaler_file)
         clustered_df = pd.read_csv(data_file)
     except Exception as e:
-        raise RuntimeError(f"Gagal load model klaster untuk {coin}: {e}")
+        raise RuntimeError(f"Gagal load model klaster untuk {coin_name}: {e}")
     
     if not os.path.exists(kmeans_file):
         raise FileNotFoundError(f"Model KMeans tidak ditemukan: {kmeans_file}")
