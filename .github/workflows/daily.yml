@@ -30,6 +30,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
           git add .
           git commit -m "🗓️ Update prediksi harian [CI]" || echo "No changes to commit"
           git push https://sintanastalia:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/sintanastalia/crypto-prediction HEAD:main
